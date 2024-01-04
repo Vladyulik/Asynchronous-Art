@@ -1,0 +1,19 @@
+{
+  "name": "asynchronous-art",
+  "version": "1.0.0",
+  "description": "Vlad Tokar`s project for 2-nd course",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Vladyulik/Asynchronous-Art.git"
+  },
+  "author": "Vladyulik",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Vladyulik/Asynchronous-Art/issues"
+  },
+  "homepage": "https://github.com/Vladyulik/Asynchronous-Art#readme"
+}
