@@ -8,6 +8,7 @@ class GameServer {
   constructor() {
     this.clients = [];
     this.rooms = [];
+    this.allRoomsActive = true;
     this.server = net.createServer();
 
     this.server.on('connection', (socket) => this.handleConnection(socket));
@@ -40,9 +41,15 @@ class GameServer {
 
     this.clients.push(client);
 
-    if (this.clients.length === 1) {
-      console.log('The first player connected. Creating room in 10 seconds...');
-      setTimeout(() => this.createRoom(), 10000);
+    for (const existingRoom of this.rooms) {
+      if (!existingRoom.status) {
+        this.allRoomsActive = false;
+        break;
+      }
+    }
+
+    if (this.allRoomsActive) {
+      this.createRoom();
     }
   }
 
@@ -52,18 +59,22 @@ class GameServer {
 
   async createRoom() {
     console.log('Creating room for active players not in the game...');
-    const availablePlayers = this.clients.filter((client) => !client.inGame);
 
     const room = {
-      players: availablePlayers,
-      status: true,
+      players: [],
+      status: false,
       wordList: [],
-      time: 60000
     };
 
     this.rooms.push(room);
 
-    this.startGame(room);
+    setTimeout(() => {
+      const availablePlayers = this.clients.filter((client) => !client.inGame);
+      room.players = availablePlayers;
+      room.status = true;
+      this.allRoomsActive = true;
+      this.startGame(room);
+    }, 5000);
   }
 
   async startGame(room) {
@@ -99,10 +110,10 @@ class GameServer {
       if (room.wordList.length > 0) {
         const word = room.wordList.shift();
         this.broadcast(room, `Next word: ${word}`);
-        setTimeout(sendNextWord, 5000);
+        setTimeout(sendNextWord.bind(this), 1000);
       } else {
         setTimeout(() => {
-          room.wordList.length === 0 ? this.finishGame(room) : sendNextWord();
+          room.wordList.length === 0 ? this.finishGame(room) : sendNextWord.bind(this)();
         }, 1000);
       }
     }
