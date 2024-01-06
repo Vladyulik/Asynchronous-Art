@@ -4,126 +4,135 @@ const fs = require('fs');
 const net = require('net');
 const uniqueID = require('./idGenerator.js');
 
-const clients = [];
-const rooms = [];
+class GameServer {
+  constructor() {
+    this.clients = [];
+    this.rooms = [];
+    this.server = net.createServer();
 
-const server = net.createServer();
+    this.server.on('connection', (socket) => this.handleConnection(socket));
+    this.server.on('error', (e) => this.handleError(e));
+  }
 
-server.on('connection', (socket) => {
+  handleConnection(socket) {
+    socket.id = uniqueID();
 
-  socket.id = uniqueID();
+    socket.on('end', () => {
+      console.log('socket end');
+    });
 
-  socket.on('end', () => {
-    console.log('socket end');
-  });
+    socket.on('close', () => {
+      console.log('socket close');
+      this.removeClient(socket);
+    });
 
-  socket.on('close', () => {
-    console.log('socket close');
-    removeClient(socket);
-  });
+    socket.on('error', (e) => {
+      if (e.code === 'ECONNRESET') {
+        return;
+      }
+      console.log(e);
+    });
 
-  socket.on('error', (e) => {
-    if (e.code === 'ECONNRESET') {
-      return;
+    const client = {
+      socket,
+      inGame: false
+    };
+
+    this.clients.push(client);
+
+    if (this.clients.length === 1) {
+      console.log('The first player connected. Creating room in 10 seconds...');
+      setTimeout(() => this.createRoom(), 10000);
     }
+  }
+
+  handleError(e) {
     console.log(e);
-  });
-
-  const client = {
-    socket,
-    inGame: false
-  };
-
-  clients.push(client);
-
-  if (clients.length === 1) {
-    console.log('The first player connected. Creating room in 10 seconds...');
-    setTimeout(() => createRoom(), 10000);
   }
 
-});
+  async createRoom() {
+    console.log('Creating room for active players not in the game...');
+    const availablePlayers = this.clients.filter((client) => !client.inGame);
 
-server.on('error', (e) => {
-  console.log(e);
-});
+    const room = {
+      players: availablePlayers,
+      status: true,
+      wordList: [],
+      time: 60000
+    };
 
-async function createRoom() {
-  console.log('Creating room for active players not in the game...');
-  const availablePlayers = clients.filter((client) => !client.inGame);
+    this.rooms.push(room);
 
-  const room = {
-    players: availablePlayers,
-    status: true,
-    wordList: [],
-    time: 60000
-  };
-
-  rooms.push(room);
-
-  startGame(room);
-}
-
-async function startGame(room) {
-  console.log('Starting the game...');
-
-  for (const client of clients) {
-    client.inGame = true;
+    this.startGame(room);
   }
 
-  const stream = fs.createReadStream('DiscourseOnMethod.txt', 'utf8');
+  async startGame(room) {
+    console.log('Starting the game...');
 
-  let buffer = '';
-
-  stream.on('data', (chunk) => {
-    buffer += chunk;
-    const words = buffer.split(/\s+/);
-    buffer = words.pop();
-    room.wordList.push(...words);
-  });
-
-  stream.on('end', () => {
-    if (buffer) {
-      room.wordList.push(buffer);
+    for (const client of this.clients) {
+      client.inGame = true;
     }
-  });
 
-  stream.on('error', (err) => {
-    console.error('Error reading the text file:', err);
-    process.exit(1);
-  });
+    const stream = fs.createReadStream('DiscourseOnMethod.txt', 'utf8');
 
-  function sendNextWord() {
-    if (room.wordList.length > 0) {
-      const word = room.wordList.shift();
-      broadcast(`Next word: ${word}`);
-      setTimeout(sendNextWord, 5000);
-    } else {
-      setTimeout(() => {
-        if (room.wordList.length === 0) {
-          finishGame();
-        }
-      }, 1000);
+    let buffer = '';
+
+    stream.on('data', (chunk) => {
+      buffer += chunk;
+      const words = buffer.split(/\s+/);
+      buffer = words.pop();
+      room.wordList.push(...words);
+    });
+
+    stream.on('end', () => {
+      if (buffer) {
+        room.wordList.push(buffer);
+      }
+    });
+
+    stream.on('error', (err) => {
+      console.error('Error reading the text file:', err);
+      process.exit(1);
+    });
+
+    function sendNextWord() {
+      if (room.wordList.length > 0) {
+        const word = room.wordList.shift();
+        this.broadcast(room, `Next word: ${word}`);
+        setTimeout(sendNextWord, 5000);
+      } else {
+        setTimeout(() => {
+          room.wordList.length === 0 ? this.finishGame(room) : sendNextWord();
+        }, 1000);
+      }
+    }
+
+    sendNextWord.bind(this)();
+  }
+
+  broadcast(room, message) {
+    for (const client of room.players) {
+      client.socket.write(`${message}\n`);
     }
   }
 
-  sendNextWord();
-}
+  finishGame() {
+    console.log('Game finished');
+  }
 
-function broadcast(message) {
-  for (const client of clients) {
-    client.socket.write(`${message}\n`);
+  removeClient(socket) {
+    const index = this.clients.findIndex((client) => client.socket === socket);
+    if (index !== -1) {
+      this.clients.splice(index, 1);
+    }
+  }
+
+  listen(port, callback) {
+    this.server.listen(port, callback);
   }
 }
 
-function finishGame() {
-  console.log('Game finished');
-}
-
-function removeClient(socket) {
-  const index = clients.indexOf(socket);
-  if (index !== -1) {
-    clients.splice(index, 1);
-  }
-}
-
-server.listen(8000);
+const gameServer = new GameServer();
+gameServer.listen(8000, () => {
+  console.log('Server listening on port 8000');
+});
