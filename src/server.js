@@ -103,7 +103,7 @@ class GameServer {
 
     stream.on('error', (err) => {
       console.error('Error reading the text file:', err);
-      process.exit(1);
+      this.finishGame(room);
     });
 
     function sendNextWord() {
