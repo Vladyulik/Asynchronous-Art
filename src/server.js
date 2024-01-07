@@ -77,7 +77,7 @@ class GameServer {
   async startGame(room) {
     console.log('Starting the game...');
 
-    for (const client of this.clients) {
+    for (const client of room.players) {
       client.inGame = true;
     }
 
