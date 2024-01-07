@@ -6,9 +6,9 @@ const uniqueID = require('./idGenerator.js');
 
 class GameServer {
   constructor() {
-    this.clients = [];
+    this.players = [];
     this.rooms = [];
-    this.allRoomsActive = true;
+    this.allRoomsClosed = true;
     this.server = net.createServer();
 
     this.server.on('connection', (socket) => this.handleConnection(socket));
@@ -27,7 +27,7 @@ class GameServer {
 
     socket.on('close', () => {
       console.log('socket close');
-      this.removeClient(socket);
+      this.removePlayer(socket);
     });
 
     socket.on('error', (e) => {
@@ -37,16 +37,16 @@ class GameServer {
       console.log(e);
     });
 
-    const client = {
+    const player = {
       socket,
       inGame: false
     };
 
-    this.clients.push(client);
+    this.players.push(player);
 
-    this.allRoomsActive = this.rooms.length > 0 ? this.rooms[0].status : true;
+    this.allRoomsClosed = this.rooms.length > 0 ? this.rooms[0].isClosed : true;
 
-    if (this.allRoomsActive) {
+    if (this.allRoomsClosed) {
       this.createRoom();
     }
   }
@@ -60,16 +60,16 @@ class GameServer {
 
     const room = {
       players: [],
-      status: false,
+      isClosed: false,
       wordList: [],
     };
 
     this.rooms.unshift(room);
 
     setTimeout(() => {
-      const availablePlayers = this.clients.filter((client) => !client.inGame);
+      const availablePlayers = this.players.filter((player) => !player.inGame);
       room.players = availablePlayers;
-      room.status = true;
+      room.isClosed = true;
       this.startGame(room);
     }, this.closeRoomTimeout);
   }
@@ -77,8 +77,8 @@ class GameServer {
   async startGame(room) {
     console.log('Starting the game...');
 
-    for (const client of room.players) {
-      client.inGame = true;
+    for (const player of room.players) {
+      player.inGame = true;
     }
 
     const stream = fs.createReadStream('DiscourseOnMethod.txt', 'utf8');
@@ -119,8 +119,8 @@ class GameServer {
   }
 
   broadcast(room, message) {
-    for (const client of room.players) {
-      client.socket.write(`${message}\n`);
+    for (const player of room.players) {
+      player.socket.write(`${message}\n`);
     }
   }
 
@@ -128,10 +128,10 @@ class GameServer {
     console.log('Game finished');
   }
 
-  removeClient(socket) {
-    const index = this.clients.findIndex((client) => client.socket === socket);
+  removePlayer(socket) {
+    const index = this.players.findIndex((player) => player.socket === socket);
     if (index !== -1) {
-      this.clients.splice(index, 1);
+      this.players.splice(index, 1);
     }
   }
 
