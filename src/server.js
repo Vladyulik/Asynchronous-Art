@@ -13,6 +13,9 @@ class GameServer {
 
     this.server.on('connection', (socket) => this.handleConnection(socket));
     this.server.on('error', (e) => this.handleError(e));
+
+    this.closeRoomTimeout = 5000;
+    this.sendWordTimeout = 1000;
   }
 
   handleConnection(socket) {
@@ -74,7 +77,7 @@ class GameServer {
       room.status = true;
       this.allRoomsActive = true;
       this.startGame(room);
-    }, 5000);
+    }, this.closeRoomTimeout);
   }
 
   async startGame(room) {
@@ -110,11 +113,11 @@ class GameServer {
       if (room.wordList.length > 0) {
         const word = room.wordList.shift();
         this.broadcast(room, `Next word: ${word}`);
-        setTimeout(sendNextWord.bind(this), 1000);
+        setTimeout(sendNextWord.bind(this), this.sendWordTimeout);
       } else {
         setTimeout(() => {
           room.wordList.length === 0 ? this.finishGame(room) : sendNextWord.bind(this)();
-        }, 1000);
+        }, this.sendWordTimeout);
       }
     }
 
