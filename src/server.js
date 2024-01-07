@@ -44,12 +44,7 @@ class GameServer {
 
     this.clients.push(client);
 
-    for (const existingRoom of this.rooms) {
-      if (!existingRoom.status) {
-        this.allRoomsActive = false;
-        break;
-      }
-    }
+    this.allRoomsActive = this.rooms.length > 0 ? this.rooms[0].status : true;
 
     if (this.allRoomsActive) {
       this.createRoom();
@@ -69,13 +64,12 @@ class GameServer {
       wordList: [],
     };
 
-    this.rooms.push(room);
+    this.rooms.unshift(room);
 
     setTimeout(() => {
       const availablePlayers = this.clients.filter((client) => !client.inGame);
       room.players = availablePlayers;
       room.status = true;
-      this.allRoomsActive = true;
       this.startGame(room);
     }, this.closeRoomTimeout);
   }
