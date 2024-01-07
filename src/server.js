@@ -5,14 +5,18 @@ const net = require('net');
 const uniqueID = require('./idGenerator.js');
 
 class GameServer {
-  constructor() {
-    this.clients = [];
+  constructor(port) {
+    this.port = port;
+    this.players = [];
     this.rooms = [];
-    this.allRoomsActive = true;
+    this.allRoomsClosed = true;
     this.server = net.createServer();
 
     this.server.on('connection', (socket) => this.handleConnection(socket));
     this.server.on('error', (e) => this.handleError(e));
+
+    this.closeRoomTimeout = 5000;
+    this.sendWordTimeout = 1000;
   }
 
   handleConnection(socket) {
@@ -24,7 +28,7 @@ class GameServer {
 
     socket.on('close', () => {
       console.log('socket close');
-      this.removeClient(socket);
+      this.removePlayer(socket);
     });
 
     socket.on('error', (e) => {
@@ -34,21 +38,16 @@ class GameServer {
       console.log(e);
     });
 
-    const client = {
+    const player = {
       socket,
       inGame: false
     };
 
-    this.clients.push(client);
+    this.players.push(player);
 
-    for (const existingRoom of this.rooms) {
-      if (!existingRoom.status) {
-        this.allRoomsActive = false;
-        break;
-      }
-    }
+    this.allRoomsClosed = this.rooms.length > 0 ? this.rooms[0].isClosed : true;
 
-    if (this.allRoomsActive) {
+    if (this.allRoomsClosed) {
       this.createRoom();
     }
   }
@@ -62,26 +61,25 @@ class GameServer {
 
     const room = {
       players: [],
-      status: false,
+      isClosed: false,
       wordList: [],
     };
 
-    this.rooms.push(room);
+    this.rooms.unshift(room);
 
     setTimeout(() => {
-      const availablePlayers = this.clients.filter((client) => !client.inGame);
+      const availablePlayers = this.players.filter((player) => !player.inGame);
       room.players = availablePlayers;
-      room.status = true;
-      this.allRoomsActive = true;
+      room.isClosed = true;
       this.startGame(room);
-    }, 5000);
+    }, this.closeRoomTimeout);
   }
 
   async startGame(room) {
     console.log('Starting the game...');
 
-    for (const client of this.clients) {
-      client.inGame = true;
+    for (const player of room.players) {
+      player.inGame = true;
     }
 
     const stream = fs.createReadStream('DiscourseOnMethod.txt', 'utf8');
@@ -103,18 +101,18 @@ class GameServer {
 
     stream.on('error', (err) => {
       console.error('Error reading the text file:', err);
-      process.exit(1);
+      this.finishGame(room);
     });
 
     function sendNextWord() {
       if (room.wordList.length > 0) {
         const word = room.wordList.shift();
         this.broadcast(room, `Next word: ${word}`);
-        setTimeout(sendNextWord.bind(this), 1000);
+        setTimeout(sendNextWord.bind(this), this.sendWordTimeout);
       } else {
         setTimeout(() => {
           room.wordList.length === 0 ? this.finishGame(room) : sendNextWord.bind(this)();
-        }, 1000);
+        }, this.sendWordTimeout);
       }
     }
 
@@ -122,8 +120,8 @@ class GameServer {
   }
 
   broadcast(room, message) {
-    for (const client of room.players) {
-      client.socket.write(`${message}\n`);
+    for (const player of room.players) {
+      player.socket.write(`${message}\n`);
     }
   }
 
@@ -131,19 +129,19 @@ class GameServer {
     console.log('Game finished');
   }
 
-  removeClient(socket) {
-    const index = this.clients.findIndex((client) => client.socket === socket);
+  removePlayer(socket) {
+    const index = this.players.findIndex((player) => player.socket === socket);
     if (index !== -1) {
-      this.clients.splice(index, 1);
+      this.players.splice(index, 1);
     }
   }
 
-  listen(port, callback) {
-    this.server.listen(port, callback);
+  listen(callback) {
+    this.server.listen(this.port, callback);
   }
 }
 
-const gameServer = new GameServer();
-gameServer.listen(8000, () => {
-  console.log('Server listening on port 8000');
+const gameServer = new GameServer(8000);
+gameServer.listen(() => {
+  console.log(`Server listening on port ${gameServer.port}`);
 });
