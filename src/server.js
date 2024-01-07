@@ -5,7 +5,8 @@ const net = require('net');
 const uniqueID = require('./idGenerator.js');
 
 class GameServer {
-  constructor() {
+  constructor(port) {
+    this.port = port;
     this.players = [];
     this.rooms = [];
     this.allRoomsClosed = true;
@@ -135,12 +136,12 @@ class GameServer {
     }
   }
 
-  listen(port, callback) {
-    this.server.listen(port, callback);
+  listen(callback) {
+    this.server.listen(this.port, callback);
   }
 }
 
-const gameServer = new GameServer();
-gameServer.listen(8000, () => {
-  console.log('Server listening on port 8000');
+const gameServer = new GameServer(8000);
+gameServer.listen(() => {
+  console.log(`Server listening on port ${gameServer.port}`);
 });
